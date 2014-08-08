@@ -37,6 +37,7 @@
 #include "ext/standard/php_standard.h"
 #include "ext/standard/php_smart_str.h"
 #include "ext/ereg/php_regex.h"
+#include "ext/json/php_json.h"
 #ifdef PHP_WIN32
 # include "win32/time.h"
 #endif
@@ -89,6 +90,7 @@
 #define PGSQL_OID_INT4     23
 #define PGSQL_OID_TEXT     25
 #define PGSQL_OID_OID      26
+#define PGSQL_OID_JSON    114
 
 #if HAVE_PQSETNONBLOCKING
 #define PQ_SETNONBLOCKING(pg_link, flag) PQsetnonblocking(pg_link, flag)
@@ -1074,6 +1076,9 @@ STD_PHP_INI_BOOLEAN( "pgsql.ignore_notice",         "0",  PHP_INI_ALL,    OnUpda
 STD_PHP_INI_BOOLEAN( "pgsql.log_notice",            "0",  PHP_INI_ALL,    OnUpdateBool, log_notices,           zend_pgsql_globals, pgsql_globals)
 STD_PHP_INI_BOOLEAN( "pgsql.convert_boolean_type",  "0",  PHP_INI_ALL,    OnUpdateBool, convert_boolean_type,  zend_pgsql_globals, pgsql_globals)
 STD_PHP_INI_BOOLEAN( "pgsql.convert_integer_type",  "0",  PHP_INI_ALL,    OnUpdateBool, convert_integer_type,  zend_pgsql_globals, pgsql_globals)
+STD_PHP_INI_BOOLEAN( "pgsql.convert_json_type",     "0",  PHP_INI_ALL,    OnUpdateBool, convert_json_type,     zend_pgsql_globals, pgsql_globals)
+STD_PHP_INI_ENTRY(   "pgsql.convert_json_opts",     "0",  PHP_INI_ALL,    OnUpdateLong, convert_json_opts,     zend_pgsql_globals, pgsql_globals)
+STD_PHP_INI_ENTRY(   "pgsql.convert_json_depth",  "512",  PHP_INI_ALL,    OnUpdateLong, convert_json_depth,    zend_pgsql_globals, pgsql_globals)
 PHP_INI_END()
 /* }}} */
 
@@ -2693,6 +2698,22 @@ static void php_pgsql_fetch_hash(INTERNAL_FUNCTION_PARAMETERS, long result_type,
 					if (result_type & PGSQL_ASSOC) {
 						field_name = PQfname(pgsql_result, i);
 						add_assoc_long(return_value, field_name, longval);
+					}
+				} else if ((oid == PGSQL_OID_JSON) && PGG(convert_json_type)){
+					zval *zjson;
+					ALLOC_INIT_ZVAL(zjson);
+					Z_TYPE_P(zjson) = IS_NULL;
+
+						data = safe_estrndup(element, element_len);
+						data_len = element_len;
+
+					php_json_decode_ex(zjson, data, data_len, PGG(convert_json_opts), PGG(convert_json_depth) TSRMLS_CC);
+					if (result_type & PGSQL_NUM) {
+						add_index_zval(return_value, i, zjson);
+					}
+
+					if (result_type & PGSQL_ASSOC) {
+						add_assoc_zval(return_value, field_name, zjson);
 					}
 				} else {
 					data = safe_estrndup(element, element_len);
@@ -6712,6 +6733,22 @@ PHP_PGSQL_API int php_pgsql_result2array_ex(PGresult *pg_result,  long result_ty
 
 						if (result_type & PGSQL_ASSOC) {
 							add_assoc_long(row, field_names[i], longval);
+						}
+					} else if ((field_types[i] == PGSQL_OID_JSON) && PGG(convert_json_type)){
+						zval *zjson;
+						ALLOC_INIT_ZVAL(zjson);
+						Z_TYPE_P(zjson) = IS_NULL;
+
+						data = safe_estrndup(element, element_len);
+						data_len = element_len;
+
+						php_json_decode_ex(zjson, data, data_len, PGG(convert_json_opts), PGG(convert_json_depth) TSRMLS_CC);
+						if (result_type & PGSQL_NUM) {
+							add_index_zval(row, i, zjson);
+						}
+
+						if (result_type & PGSQL_ASSOC) {
+							add_assoc_zval(row, field_names[i], zjson);
 						}
 					} else {
 

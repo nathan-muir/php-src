@@ -288,7 +288,8 @@ ZEND_BEGIN_MODULE_GLOBALS(pgsql)
 	int le_lofp,le_string;
 	int ignore_notices,log_notices;
 	HashTable notices;  /* notice message for each connection */
-	int convert_boolean_type, convert_integer_type;
+	int convert_boolean_type, convert_integer_type, convert_json_type;
+	long convert_json_opts, convert_json_depth;
 ZEND_END_MODULE_GLOBALS(pgsql)
 
 ZEND_EXTERN_MODULE_GLOBALS(pgsql)
